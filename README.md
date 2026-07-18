@@ -19,17 +19,34 @@ Both routes install the same files and must pass the same verification checks.
 
 ```mermaid
 flowchart LR
-    VPS[Hetzner VPS] --> GROK[Grok Build<br>built-in X tools]
+    VPS[Scheduled Hetzner VPS] --> GROK[Grok Build]
+    GROK --> XTOOLS[Built-in X tools]
     VPS -. selected cases .-> API[X API]
-    GROK --> RAW[Ephemeral raw posts]
-    API -. explicit only .-> RAW
-    RAW --> CANDIDATE[Candidate branch]
-    CANDIDATE --> PUBLISHER[Trusted GitHub publisher]
-    PUBLISHER --> MAIN[main / raw]
+    XTOOLS --> FILES[Markdown files]
+    API -. explicit only .-> FILES
+    FILES --> REPO[Your GitHub repository]
+    REPO --> USE[Your app, agent or archive]
 ```
 
 The Grok path is the default. The X API is an optional, explicit input. A Grok
 failure never falls back to the metered API.
+
+The template's job ends when the files reach your repository's `main` branch.
+You decide what uses them next. It could be an agent, search index, notes system,
+data importer, static site or archive.
+
+## How safe publishing works
+
+The simple diagram hides one safety step. The VPS does not write directly to
+`main`. It pushes new files to a temporary candidate branch.
+
+A GitHub Actions workflow checks the candidate using trusted code from `main`.
+It accepts new Markdown files, deduplicates identical files and rejects
+collisions or changes outside `raw/x/`. It then commits accepted files to
+`main` and deletes the candidate branch.
+
+This design keeps the public journey simple while preventing an automated VPS
+from changing code, workflows or existing content.
 
 ## Security model
 
