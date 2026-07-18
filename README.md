@@ -48,6 +48,91 @@ collisions or changes outside `raw/x/`. It then commits accepted files to
 This design keeps the public journey simple while preventing an automated VPS
 from changing code, workflows or existing content.
 
+## Run each X tool headlessly
+
+The commands below use this real post from Elon Musk:
+
+<https://x.com/elonmusk/status/2078289996323148076>
+
+The post ID is `2078289996323148076`. Grok returned `@elonmusk` as the author and
+`Sat, 18 Jul 2026 01:25:22 GMT` as the creation time. The post starts: “Our 2T
+model, which is better than our 1.5T in every way, will finish initial training
+next week.”
+
+These examples were verified with Grok Build 0.2.102 on 18 July 2026. Set the
+shared safety flags once in Bash:
+
+```bash
+GROK_X_FLAGS=(
+  --always-approve
+  --sandbox strict
+  --output-format json
+  --no-memory
+  --no-subagents
+  --no-plan
+  --max-turns 4
+  --disable-web-search
+  --deny 'Bash(*)'
+  --deny 'Edit(*)'
+  --deny 'Read(*)'
+  --deny 'Grep(*)'
+  --deny 'WebFetch(*)'
+  --deny 'MCPTool(*)'
+)
+```
+
+### Fetch a post and its thread
+
+Use `x_thread_fetch` when you already have a post ID:
+
+```bash
+grok -p 'Use x_thread_fetch exactly once with post_id 2078289996323148076. Return the exact post ID, author handle, full post text, creation time, and URL. Do not use any other tool or summarize.' \
+  "${GROK_X_FLAGS[@]}"
+```
+
+This returned post ID `2078289996323148076` from `@elonmusk`.
+
+### Find a post with an exact query
+
+Use `x_keyword_search` for X operators such as `from:`, `since:` and
+`-is:retweet`:
+
+```bash
+grok -p 'Use x_keyword_search exactly once in Latest mode with this query: from:elonmusk since:2026-07-18 "Our 2T model" -is:retweet. Return post IDs, author handles, creation times, full text, and URLs. Do not use any other tool or summarize.' \
+  "${GROK_X_FLAGS[@]}"
+```
+
+This returned post ID `2078289996323148076` from `@elonmusk`.
+
+### Find a post by meaning
+
+Use `x_semantic_search` when you know the subject but not the exact wording:
+
+```bash
+grok -p 'Use x_semantic_search exactly once to find the Elon Musk post about a 2T model finishing initial training and possibly exceeding Kimi. Return post IDs, author handles, creation times, full text, and URLs. Do not use any other tool or summarize.' \
+  "${GROK_X_FLAGS[@]}"
+```
+
+The results included post ID `2078289996323148076` from `@elonmusk`.
+
+### Find an X account
+
+Use `x_user_search` to resolve a person or organisation to an account:
+
+```bash
+grok -p 'Use x_user_search exactly once to find the official Elon Musk account. Return candidate handles and user IDs. Identify the official account from the tool result. Do not use any other tool.' \
+  "${GROK_X_FLAGS[@]}"
+```
+
+This returned `@elonmusk` with user ID `44196397`. It also returned similarly
+named accounts, so callers must keep the selected user ID rather than trusting a
+display name alone.
+
+Each command prints the Grok CLI JSON envelope, including `text`, `sessionId`
+and usage. The worker's
+[`grok_search.py`](x_grok_reader/grok_search.py) adapter adds a JSON Schema when
+it needs a stable `posts` array for automation.
+
 ## Security model
 
 The installer creates 3 system users:
