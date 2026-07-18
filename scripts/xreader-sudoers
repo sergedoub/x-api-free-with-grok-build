@@ -1,0 +1,2 @@
+xreader-worker ALL=(xreader-grok) NOPASSWD: /usr/local/libexec/xreader-grok-search *
+xreader-worker ALL=(xreader-submit) NOPASSWD: /usr/local/libexec/xreader-submit *

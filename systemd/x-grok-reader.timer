@@ -1,0 +1,11 @@
+[Unit]
+Description=Run the Grok Build X reader every 4 hours
+
+[Timer]
+OnCalendar=*-*-* 00/4:15:00
+RandomizedDelaySec=10m
+Persistent=false
+Unit=x-grok-reader.service
+
+[Install]
+WantedBy=timers.target

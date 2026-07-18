@@ -1,0 +1,5 @@
+#!/bin/sh
+set -eu
+export PYTHONPATH=/usr/local/lib/x-grok-reader
+exec /usr/bin/python3 -m x_grok_reader.ingest \
+  --grok-helper /usr/local/libexec/xreader-grok-search-as-user "$@"

@@ -1,0 +1,45 @@
+[Unit]
+Description=Read X through Grok Build and submit append-only raw posts
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+TimeoutStartSec=45min
+User=xreader-worker
+Group=xreader
+RuntimeDirectory=x-grok-reader
+RuntimeDirectoryMode=0770
+StateDirectory=xreader-worker
+StateDirectoryMode=0750
+Environment=TMPDIR=/run/x-grok-reader
+ExecStart=/usr/bin/python3 /usr/local/lib/x-grok-reader/x_grok_reader/worker.py
+UMask=0077
+
+ProtectSystem=strict
+ProtectHome=true
+PrivateDevices=true
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictRealtime=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadWritePaths=/run/x-grok-reader /var/lib/xreader-worker /var/lib/xreader-grok
+InaccessiblePaths=-/run/tailscale -/var/run/tailscale -/var/lib/tailscale -/etc/tailscale
+SocketBindDeny=any
+IPAddressDeny=10.0.0.0/8
+IPAddressDeny=172.16.0.0/12
+IPAddressDeny=192.168.0.0/16
+IPAddressDeny=100.64.0.0/10
+IPAddressDeny=169.254.0.0/16
+IPAddressDeny=fc00::/7
+IPAddressDeny=fe80::/10
+
+[Install]
+WantedBy=multi-user.target

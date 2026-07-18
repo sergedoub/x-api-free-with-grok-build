@@ -1,0 +1,96 @@
+name: publish-ingest-candidate
+
+# Do not add a push trigger. Scheduled and manual runs use trusted default-branch
+# code. Candidate-provided code is never executed.
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch: {}
+
+permissions:
+  actions: write
+  contents: write
+
+concurrency:
+  group: x-grok-main-writer
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: vars.X_READER_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Select oldest pending candidate
+        id: candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          candidate="$({
+            git ls-remote --heads origin 'refs/heads/ingest/hetzner/*' \
+              | awk '{print $2}' \
+              | sed 's#^refs/heads/##' \
+              | sort
+          } | head -n 1)"
+          if [ -z "$candidate" ]; then
+            echo "found=false" >> "$GITHUB_OUTPUT"
+            echo "No pending candidate branches."
+            exit 0
+          fi
+          if [[ ! "$candidate" =~ ^ingest/hetzner/[a-z0-9][a-z0-9-]{0,62}$ ]]; then
+            echo "Invalid candidate branch: $candidate" >&2
+            exit 1
+          fi
+          git fetch --no-tags origin \
+            "refs/heads/$candidate:refs/remotes/origin/$candidate"
+          echo "found=true" >> "$GITHUB_OUTPUT"
+          echo "branch=$candidate" >> "$GITHUB_OUTPUT"
+
+      - name: Materialize candidate without executing it
+        if: steps.candidate.outputs.found == 'true'
+        id: checkout
+        env:
+          CANDIDATE: ${{ steps.candidate.outputs.branch }}
+        run: |
+          candidate_root="$RUNNER_TEMP/xreader-candidate"
+          git worktree add --detach "$candidate_root" "refs/remotes/origin/$CANDIDATE"
+          base_ref="$(git merge-base origin/main "refs/remotes/origin/$CANDIDATE")"
+          echo "root=$candidate_root" >> "$GITHUB_OUTPUT"
+          echo "base=$base_ref" >> "$GITHUB_OUTPUT"
+
+      - name: Validate with trusted main and apply additions
+        if: steps.candidate.outputs.found == 'true'
+        id: apply
+        env:
+          CANDIDATE_ROOT: ${{ steps.checkout.outputs.root }}
+          BASE_REF: ${{ steps.checkout.outputs.base }}
+        run: >-
+          python3 -m x_grok_reader.publish_candidate
+          --main-root "$PWD"
+          --candidate-root "$CANDIDATE_ROOT"
+          --base-ref "$BASE_REF"
+
+      - name: Commit accepted raw additions to current main
+        if: steps.candidate.outputs.found == 'true' && steps.apply.outputs.changed == 'true'
+        env:
+          CANDIDATE: ${{ steps.candidate.outputs.branch }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add raw/x
+          git commit -m "ingest: publish $CANDIDATE"
+          git push origin HEAD:main
+
+      - name: Delete accepted candidate and drain queue
+        if: steps.candidate.outputs.found == 'true'
+        env:
+          CANDIDATE: ${{ steps.candidate.outputs.branch }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git push origin --delete "$CANDIDATE"
+          gh workflow run publish-ingest-candidate.yml \
+            --repo "$GITHUB_REPOSITORY" --ref main

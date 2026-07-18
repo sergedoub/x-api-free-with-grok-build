@@ -1,0 +1,20 @@
+#!/bin/sh
+set -eu
+if [ "$#" -ne 1 ]; then
+  echo "usage: xreader-submit /run/x-grok-reader/run-*/stage" >&2
+  exit 2
+fi
+case "$1" in
+  /run/x-grok-reader/run-*/stage) ;;
+  *) echo "refusing staging path outside worker runtime" >&2; exit 2 ;;
+esac
+
+repo_url="$(cat /etc/x-grok-reader/repo-url)"
+export HOME=/var/lib/xreader-submit
+export PYTHONPATH=/usr/local/lib/x-grok-reader
+export TMPDIR=/run/x-grok-reader
+export GIT_SSH_COMMAND="/usr/bin/ssh -i /var/lib/xreader-submit/.ssh/id_ed25519 -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UpdateHostKeys=no"
+exec /usr/bin/python3 -m x_grok_reader.submit \
+  --staging-root "$1" \
+  --repo-url "$repo_url" \
+  --location hetzner

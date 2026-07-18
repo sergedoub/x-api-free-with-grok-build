@@ -1,0 +1,17 @@
+# Copy this file into a repository created from the template. Queries marked
+# enabled = false are ignored.
+
+[[queries]]
+name = "example-topic"
+query = '"example topic" lang:en -is:retweet'
+mode = "Latest"
+limit = 20
+enabled = false
+
+[[queries]]
+name = "example-account"
+query = "from:example since:2026-01-01 -is:retweet"
+expected_handle = "example"
+mode = "Latest"
+limit = 20
+enabled = false

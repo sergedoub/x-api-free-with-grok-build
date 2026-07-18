@@ -1,0 +1,33 @@
+#!/bin/sh
+set -eu
+
+runtime="$(mktemp -d /run/x-grok-reader/grok-XXXXXX)"
+cleanup() {
+  case "$runtime" in
+    /run/x-grok-reader/grok-*) rm -rf -- "$runtime" ;;
+  esac
+}
+trap cleanup EXIT HUP INT TERM
+
+mkdir -p "$runtime/home" "$runtime/cwd"
+install -m 600 /var/lib/xreader-grok/auth.json "$runtime/home/auth.json"
+install -m 600 /usr/local/lib/x-grok-reader/grok-home/config.toml \
+  "$runtime/home/config.toml"
+install -m 600 /usr/local/lib/x-grok-reader/grok-home/requirements.toml \
+  "$runtime/home/requirements.toml"
+
+unset XAI_API_KEY
+export HOME="$runtime"
+export GROK_HOME="$runtime/home"
+export PYTHONPATH=/usr/local/lib/x-grok-reader
+
+set +e
+/usr/bin/python3 -m x_grok_reader.grok_search \
+  --grok-bin /usr/local/bin/grok --cwd "$runtime/cwd" "$@"
+status=$?
+set -e
+
+if [ -f "$runtime/home/auth.json" ]; then
+  install -m 600 "$runtime/home/auth.json" /var/lib/xreader-grok/auth.json
+fi
+exit "$status"

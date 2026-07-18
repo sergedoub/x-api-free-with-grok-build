@@ -1,0 +1,11 @@
+#!/bin/sh
+set -eu
+if [ "$#" -ne 1 ]; then
+  exit 2
+fi
+case "$1" in
+  /run/x-grok-reader/run-*/stage) ;;
+  *) exit 2 ;;
+esac
+exec /usr/bin/sudo -n -u xreader-submit \
+  /usr/local/libexec/xreader-submit "$1"
