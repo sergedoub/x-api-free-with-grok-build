@@ -45,6 +45,7 @@ Grok returned post ID `2078289996323148076`, author `@elonmusk`, and creation
 time `Sat, 18 Jul 2026 01:25:22 GMT`. The post begins: “Our 2T model, which is
 better than our 1.5T in every way, will finish initial training next week.”
 
+
 Set the shared headless safety flags once in Bash:
 
 ```bash
@@ -104,12 +105,6 @@ This returned `@elonmusk` with user ID `44196397`. It also returned similarly
 named accounts, so keep the selected user ID rather than trusting a display name
 alone.
 
-Each command prints the Grok CLI JSON envelope, including `text`, `sessionId`,
-and usage. The scheduled worker uses
-[`x_grok_reader/grok_search.py`](x_grok_reader/grok_search.py) to request and
-validate a stable `posts` array for automation. The included scheduled adapter
-uses `x_keyword_search`; the other three commands document the bundled tools
-available for extending the reader.
 
 ## What lands in GitHub
 
@@ -134,47 +129,8 @@ The stable path is:
 raw/x/<query-name>/YYYY-MM-DD__<post-id>.md
 ```
 
-Provider identity is not written into the document, so downstream consumers can
-treat the files as ordinary source records rather than Grok-specific objects.
 
-## The security boundary
 
-The design assumes the VPS root account and the destination repository are
-trusted. Grok output and candidate branches are untrusted input.
-
-The installer creates three Linux system users with separate jobs:
-
-- `xreader-worker` orchestrates a run
-- `xreader-grok` owns the Grok authentication file and performs retrieval
-- `xreader-submit` owns the repository deploy key and submits candidates
-
-Post content, temporary checkouts, Grok homes, and session files exist only
-under `/run/x-grok-reader`. The installer refuses to proceed unless `/run` is a
-`tmpfs`, and the worker removes its per-run directory when the run ends.
-
-The systemd service is a hardened oneshot worker, not a server. It has no
-listener (`SocketBindDeny=any`), uses `ProtectSystem=strict` and
-`ProtectHome=true`, restricts writable paths and address families, and denies
-private, link-local, and Tailscale address ranges.
-
-The normal submit path never writes directly to `main`. The
-repository-scoped deploy key is write-enabled, so the trust model still assumes
-the VPS root account and installed submitter code are not compromised. The
-submit helper uses that key only to propose additions on a branch named
-`ingest/hetzner/<run-id>`. The publisher then:
-
-1. starts only on a schedule or manual dispatch using workflow code from the
-   trusted `main` branch;
-2. never executes candidate-provided code;
-3. accepts only new, regular, UTF-8 Markdown files matching
-   `raw/x/<query>/YYYY-MM-DD__<post-id>.md`;
-4. rejects modifications, deletions, symlinks, malformed or oversized files,
-   and same-path/different-content collisions;
-5. deduplicates identical files, publishes accepted additions to `main`, and
-   deletes the candidate branch.
-
-The VPS reports publication only after the candidate branch disappears and the
-SHA-256 hashes of the files on `main` match its submission.
 
 ## Limitations
 
