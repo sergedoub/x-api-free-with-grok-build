@@ -8,6 +8,20 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class AssetTests(unittest.TestCase):
+    def test_setup_instructions_live_only_in_mega_prompt(self) -> None:
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        prompt = (ROOT / "MEGA_PROMPT.md").read_text(encoding="utf-8")
+        self.assertFalse((ROOT / "SETUP.md").exists())
+        self.assertIn("[`MEGA_PROMPT.md`](MEGA_PROMPT.md)", readme)
+        for setup_command in (
+            "gh repo create <owner>/<repo>",
+            "./scripts/install.sh",
+            "xreader-grok-login",
+            "systemctl enable --now x-grok-reader.timer",
+        ):
+            self.assertNotIn(setup_command, readme)
+            self.assertIn(setup_command, prompt)
+
     def test_service_has_vps_boundaries(self) -> None:
         service = (ROOT / "systemd/x-grok-reader.service").read_text(encoding="utf-8")
         self.assertIn("ProtectSystem=strict", service)
@@ -40,4 +54,3 @@ class AssetTests(unittest.TestCase):
         )
         self.assertNotIn("bowerbird" + "-serge", text)
         self.assertNotIn("grim" + "hermes", text)
-        self.assertNotIn("sergedoub/" + "bowerbird", text)

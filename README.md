@@ -31,12 +31,8 @@ back to a metered API.
 
 ## Set it up
 
-Use either route:
-
-- follow the copy-paste walkthrough in [`SETUP.md`](SETUP.md)
-- give [`MEGA_PROMPT.md`](MEGA_PROMPT.md) to a capable coding agent
-
-
+Give [`MEGA_PROMPT.md`](MEGA_PROMPT.md) to a capable coding agent. It contains
+the complete setup, security and end-to-end verification workflow.
 
 ## A real result, through all four X tools
 
@@ -140,73 +136,6 @@ raw/x/<query-name>/YYYY-MM-DD__<post-id>.md
 
 Provider identity is not written into the document, so downstream consumers can
 treat the files as ordinary source records rather than Grok-specific objects.
-
-## Set it up
-
-Use either route:
-
-- follow the copy-paste walkthrough in [`SETUP.md`](SETUP.md)
-- give [`MEGA_PROMPT.md`](MEGA_PROMPT.md) to a capable coding agent
-
-Both routes install the same files and require the same end-to-end checks.
-
-Create a private repository from the template if the collected posts should be
-private, then enable at least one query:
-
-```bash
-gh repo create <owner>/<repo> \
-  --private \
-  --template sergedoub/x-api-free-with-grok-build \
-  --clone
-cd <repo>
-
-# Edit config/queries.toml, then verify the checkout.
-python3 -m unittest discover -v
-gh variable set X_READER_ENABLED --body true --repo <owner>/<repo>
-```
-
-On an Ubuntu 24.04 Hetzner VPS, copy this checkout and the current Linux Grok
-Build binary, then run:
-
-```bash
-sudo ./scripts/install.sh \
-  /tmp/x-grok-reader \
-  /tmp/grok \
-  git@github.com:<owner>/<repo>.git
-
-sudo -u xreader-grok /usr/local/libexec/xreader-grok-login
-systemctl start x-grok-reader.service
-cat /var/lib/xreader-worker/health.json
-```
-
-The installer prints a deploy key. Add that public key, with write access, to
-only the destination repository. Run one complete manual retrieval and
-publication before enabling the timer:
-
-```bash
-systemctl enable --now x-grok-reader.timer
-systemctl list-timers x-grok-reader.timer
-```
-
-The default timer runs every four hours with up to ten minutes of randomized
-delay. GitHub checks pending candidate branches every five minutes, although
-scheduled Actions runs can be late.
-
-The important setup and runtime paths are:
-
-| Path | Purpose |
-| --- | --- |
-| `config/queries.toml` | versioned query configuration |
-| `/etc/x-grok-reader/queries.toml` | installed query configuration |
-| `/var/lib/xreader-grok/auth.json` | Grok device authentication; readable by `xreader-grok` |
-| `/var/lib/xreader-submit/.ssh/id_ed25519` | repository deploy key; readable by `xreader-submit` |
-| `/run/x-grok-reader` | tmpfs runtime content, temporary checkouts, and session homes |
-| `/var/lib/xreader-worker/health.json` | last-run health record |
-| `raw/x/<query>/` | accepted Markdown in the destination repository |
-
-No runtime Python packages are required. The host needs Python 3.11 or later,
-Git, OpenSSH, systemd, a Linux Grok Build binary, eligible authenticated Grok
-access, and a repository-scoped write deploy key.
 
 ## The security boundary
 
