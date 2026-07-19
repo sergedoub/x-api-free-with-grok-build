@@ -1,66 +1,46 @@
-# X reads from Grok on Hetzner
+# Read public X through Grok Build, then keep the Markdown
 
-Run scheduled, read-only X monitoring from a Hetzner VPS through Grok Build.
-Grok Build is available with eligible SuperGrok and X Premium Plus plans. Its
-usage draws from the subscription allowance, so this path does not create a
-separate X Developer API charge.
+This is a small, standalone pipeline for reading and searching public X without
+an X Developer API key. A scheduled worker on a hardened Hetzner VPS calls Grok
+Build's bundled, read-only X tools, normalizes the results to Markdown, and
+delivers them to your GitHub repository.
 
-This repository is both a reference implementation and a GitHub template. Create
-a private repository from it when the collected posts are private.
+The repository is the handoff point. What happens next is deliberately open:
+build an app, feed an agent, create a search index, import a database, publish a
+site, or keep an archive.
 
-## Choose a setup route
+There is no separate per-read X API bill on this path. It is not literally free:
+you still need eligible Grok access and a paid VPS, and Grok usage counts against
+the allowance for that access.
 
-- give [`MEGA_PROMPT.md`](MEGA_PROMPT.md) to a capable coding agent
-- follow the commands in [`SETUP.md`](SETUP.md)
-
-Both routes install the same files and must pass the same verification checks.
-
-## How it works
-
-```mermaid
-flowchart LR
-    VPS[Scheduled Hetzner VPS] --> GROK[Grok Build]
-    GROK --> XTOOLS[Built-in X tools]
-    VPS -. selected cases .-> API[X API]
-    XTOOLS --> FILES[Markdown files]
-    API -. explicit only .-> FILES
-    FILES --> REPO[Your GitHub repository]
-    REPO --> USE[Your app, agent or archive]
+```text
+systemd timer on Hetzner
+  -> Grok Build -> read-only X tools
+  -> /run/x-grok-reader/.../raw/x/<query>/YYYY-MM-DD__<post-id>.md
+  -> ingest/hetzner/<run-id>
+  -> trusted GitHub Actions validation
+  -> your repository's main branch
+  -> anything you want
 ```
 
-The Grok path is the default. The X API is an optional, explicit input. A Grok
-failure never falls back to the metered API.
+This is a best-effort reader, not a drop-in X API. Retrieval is model-driven and
+therefore nondeterministic. Grok can miss a result, return a different result on
+another run, or fail to satisfy the structured-output schema. The worker treats
+malformed output as a failed run; it does not invent records or silently fall
+back to a metered API.
 
-The template's job ends when the files reach your repository's `main` branch.
-You decide what uses them next. It could be an agent, search index, notes system,
-data importer, static site or archive.
+## A real result, through all four X tools
 
-## How safe publishing works
-
-The simple diagram hides one safety step. The VPS does not write directly to
-`main`. It pushes new files to a temporary candidate branch.
-
-A GitHub Actions workflow checks the candidate using trusted code from `main`.
-It accepts new Markdown files, deduplicates identical files and rejects
-collisions or changes outside `raw/x/`. It then commits accepted files to
-`main` and deletes the candidate branch.
-
-This design keeps the public journey simple while preventing an automated VPS
-from changing code, workflows or existing content.
-
-## Run each X tool headlessly
-
-The commands below use this real post from Elon Musk:
+The commands below were verified with Grok Build 0.2.102 on 18 July 2026 against
+this real Elon Musk post:
 
 <https://x.com/elonmusk/status/2078289996323148076>
 
-The post ID is `2078289996323148076`. Grok returned `@elonmusk` as the author and
-`Sat, 18 Jul 2026 01:25:22 GMT` as the creation time. The post starts: “Our 2T
-model, which is better than our 1.5T in every way, will finish initial training
-next week.”
+Grok returned post ID `2078289996323148076`, author `@elonmusk`, and creation
+time `Sat, 18 Jul 2026 01:25:22 GMT`. The post begins: “Our 2T model, which is
+better than our 1.5T in every way, will finish initial training next week.”
 
-These examples were verified with Grok Build 0.2.102 on 18 July 2026. Set the
-shared safety flags once in Bash:
+Set the shared headless safety flags once in Bash:
 
 ```bash
 GROK_X_FLAGS=(
@@ -81,9 +61,7 @@ GROK_X_FLAGS=(
 )
 ```
 
-### Fetch a post and its thread
-
-Use `x_thread_fetch` when you already have a post ID:
+### `x_thread_fetch`: fetch a known post and its thread
 
 ```bash
 grok -p 'Use x_thread_fetch exactly once with post_id 2078289996323148076. Return the exact post ID, author handle, full post text, creation time, and URL. Do not use any other tool or summarize.' \
@@ -92,21 +70,16 @@ grok -p 'Use x_thread_fetch exactly once with post_id 2078289996323148076. Retur
 
 This returned post ID `2078289996323148076` from `@elonmusk`.
 
-### Find a post with an exact query
-
-Use `x_keyword_search` for X operators such as `from:`, `since:` and
-`-is:retweet`:
+### `x_keyword_search`: use X search operators
 
 ```bash
 grok -p 'Use x_keyword_search exactly once in Latest mode with this query: from:elonmusk since:2026-07-18 "Our 2T model" -is:retweet. Return post IDs, author handles, creation times, full text, and URLs. Do not use any other tool or summarize.' \
   "${GROK_X_FLAGS[@]}"
 ```
 
-This returned post ID `2078289996323148076` from `@elonmusk`.
+This returned the same post ID from `@elonmusk`.
 
-### Find a post by meaning
-
-Use `x_semantic_search` when you know the subject but not the exact wording:
+### `x_semantic_search`: find a post by meaning
 
 ```bash
 grok -p 'Use x_semantic_search exactly once to find the Elon Musk post about a 2T model finishing initial training and possibly exceeding Kimi. Return post IDs, author handles, creation times, full text, and URLs. Do not use any other tool or summarize.' \
@@ -115,9 +88,7 @@ grok -p 'Use x_semantic_search exactly once to find the Elon Musk post about a 2
 
 The results included post ID `2078289996323148076` from `@elonmusk`.
 
-### Find an X account
-
-Use `x_user_search` to resolve a person or organisation to an account:
+### `x_user_search`: resolve an account to a user ID
 
 ```bash
 grok -p 'Use x_user_search exactly once to find the official Elon Musk account. Return candidate handles and user IDs. Identify the official account from the tool result. Do not use any other tool.' \
@@ -125,63 +96,168 @@ grok -p 'Use x_user_search exactly once to find the official Elon Musk account. 
 ```
 
 This returned `@elonmusk` with user ID `44196397`. It also returned similarly
-named accounts, so callers must keep the selected user ID rather than trusting a
-display name alone.
+named accounts, so keep the selected user ID rather than trusting a display name
+alone.
 
-Each command prints the Grok CLI JSON envelope, including `text`, `sessionId`
-and usage. The worker's
-[`grok_search.py`](x_grok_reader/grok_search.py) adapter adds a JSON Schema when
-it needs a stable `posts` array for automation.
+Each command prints the Grok CLI JSON envelope, including `text`, `sessionId`,
+and usage. The scheduled worker uses
+[`x_grok_reader/grok_search.py`](x_grok_reader/grok_search.py) to request and
+validate a stable `posts` array for automation. The included scheduled adapter
+uses `x_keyword_search`; the other three commands document the bundled tools
+available for extending the reader.
 
-## Security model
+## What lands in GitHub
 
-The installer creates 3 system users:
+One post becomes one append-only Markdown file:
 
-- `xreader-worker` orchestrates each run
-- `xreader-grok` can read only the Grok authentication file
-- `xreader-submit` can read only the repository deploy key
+```markdown
+---
+author: "@elonmusk"
+created_at: "2026-07-18T01:25:22Z"
+query_name: "model-training"
+query: "from:elonmusk since:2026-07-18 -is:retweet"
+source_url: "https://x.com/elonmusk/status/2078289996323148076"
+---
 
-All post content, temporary checkouts and Grok session files live below
-`/run/x-grok-reader`. On Ubuntu, `/run` is tmpfs. The worker removes its runtime
-directory after GitHub has accepted the candidate branch.
+Our 2T model, which is better than our 1.5T in every way, will finish initial
+training next week…
+```
 
-GitHub stores pending submissions as `ingest/hetzner/<run-id>` branches. A
-scheduled workflow uses code from `main` to validate them. Candidates may only
-add UTF-8 Markdown files below `raw/x/`. They cannot change code, workflows or
-existing raw files.
+The stable path is:
 
-## What the template includes
+```text
+raw/x/<query-name>/YYYY-MM-DD__<post-id>.md
+```
 
-- a constrained Grok Build X-search adapter with structured output
-- TOML query configuration
-- Markdown normalization
-- append-only candidate submission and hash verification
-- a trusted GitHub publisher workflow
-- a hardened oneshot systemd service and timer
-- an installer with separate credentials and no listening ports
-- offline tests using the Python standard library
+Provider identity is not written into the document, so downstream consumers can
+treat the files as ordinary source records rather than Grok-specific objects.
 
-## Requirements
+## Set it up
 
-- a Hetzner VPS running Ubuntu 24.04 or a compatible systemd distribution
-- Python 3.11 or later
-- Git and OpenSSH
-- a Linux Grok Build binary and an eligible authenticated subscription
-- a GitHub repository created from this template
-- a write-enabled deploy key scoped only to that repository
+Use either route:
 
-No runtime Python packages are required.
+- follow the copy-paste walkthrough in [`SETUP.md`](SETUP.md)
+- give [`MEGA_PROMPT.md`](MEGA_PROMPT.md) to a capable coding agent
 
-## Important limits
+Both routes install the same files and require the same end-to-end checks.
 
-Grok Build's X tools are read-only. This project does not post, like, follow,
-send messages or manage an X account.
+Create a private repository from the template if the collected posts should be
+private, then enable at least one query:
 
-X tool availability and subscription terms can change. Check the official
+```bash
+gh repo create <owner>/<repo> \
+  --private \
+  --template sergedoub/x-api-free-with-grok-build \
+  --clone
+cd <repo>
+
+# Edit config/queries.toml, then verify the checkout.
+python3 -m unittest discover -v
+gh variable set X_READER_ENABLED --body true --repo <owner>/<repo>
+```
+
+On an Ubuntu 24.04 Hetzner VPS, copy this checkout and the current Linux Grok
+Build binary, then run:
+
+```bash
+sudo ./scripts/install.sh \
+  /tmp/x-grok-reader \
+  /tmp/grok \
+  git@github.com:<owner>/<repo>.git
+
+sudo -u xreader-grok /usr/local/libexec/xreader-grok-login
+systemctl start x-grok-reader.service
+cat /var/lib/xreader-worker/health.json
+```
+
+The installer prints a deploy key. Add that public key, with write access, to
+only the destination repository. Run one complete manual retrieval and
+publication before enabling the timer:
+
+```bash
+systemctl enable --now x-grok-reader.timer
+systemctl list-timers x-grok-reader.timer
+```
+
+The default timer runs every four hours with up to ten minutes of randomized
+delay. GitHub checks pending candidate branches every five minutes, although
+scheduled Actions runs can be late.
+
+The important setup and runtime paths are:
+
+| Path | Purpose |
+| --- | --- |
+| `config/queries.toml` | versioned query configuration |
+| `/etc/x-grok-reader/queries.toml` | installed query configuration |
+| `/var/lib/xreader-grok/auth.json` | Grok device authentication; readable by `xreader-grok` |
+| `/var/lib/xreader-submit/.ssh/id_ed25519` | repository deploy key; readable by `xreader-submit` |
+| `/run/x-grok-reader` | tmpfs runtime content, temporary checkouts, and session homes |
+| `/var/lib/xreader-worker/health.json` | last-run health record |
+| `raw/x/<query>/` | accepted Markdown in the destination repository |
+
+No runtime Python packages are required. The host needs Python 3.11 or later,
+Git, OpenSSH, systemd, a Linux Grok Build binary, eligible authenticated Grok
+access, and a repository-scoped write deploy key.
+
+## The security boundary
+
+The design assumes the VPS root account and the destination repository are
+trusted. Grok output and candidate branches are untrusted input.
+
+The installer creates three Linux system users with separate jobs:
+
+- `xreader-worker` orchestrates a run
+- `xreader-grok` owns the Grok authentication file and performs retrieval
+- `xreader-submit` owns the repository deploy key and submits candidates
+
+Post content, temporary checkouts, Grok homes, and session files exist only
+under `/run/x-grok-reader`. The installer refuses to proceed unless `/run` is a
+`tmpfs`, and the worker removes its per-run directory when the run ends.
+
+The systemd service is a hardened oneshot worker, not a server. It has no
+listener (`SocketBindDeny=any`), uses `ProtectSystem=strict` and
+`ProtectHome=true`, restricts writable paths and address families, and denies
+private, link-local, and Tailscale address ranges.
+
+The normal submit path never writes directly to `main`. The
+repository-scoped deploy key is write-enabled, so the trust model still assumes
+the VPS root account and installed submitter code are not compromised. The
+submit helper uses that key only to propose additions on a branch named
+`ingest/hetzner/<run-id>`. The publisher then:
+
+1. starts only on a schedule or manual dispatch using workflow code from the
+   trusted `main` branch;
+2. never executes candidate-provided code;
+3. accepts only new, regular, UTF-8 Markdown files matching
+   `raw/x/<query>/YYYY-MM-DD__<post-id>.md`;
+4. rejects modifications, deletions, symlinks, malformed or oversized files,
+   and same-path/different-content collisions;
+5. deduplicates identical files, publishes accepted additions to `main`, and
+   deletes the candidate branch.
+
+The VPS reports publication only after the candidate branch disappears and the
+SHA-256 hashes of the files on `main` match its submission.
+
+## Reliability and scope
+
+This project provides reproducible containment and publication, not
+deterministic retrieval. The X tools are mediated by a model, their availability
+and behavior can change, and JSON-schema compliance can fail. Search results are
+best-effort and should not be treated as a complete feed, an audit log, or an
+API with stable ranking and pagination guarantees.
+
+The tools used here are read-only. This project does not post, like, follow,
+send messages, or manage an X account. A Grok failure never triggers an X API
+fallback. If you explicitly add a metered X API source, keep it as a separate
+provider and spending boundary; see [`docs/x-api.md`](docs/x-api.md).
+
+Before installing, check the current official
 [Grok Build guide](https://docs.x.ai/build/overview),
-[Grok Build announcement](https://x.ai/news/grok-build-cli) and
-[subscription usage guidance](https://docs.x.ai/grok/faq) before installing.
-This project is not affiliated with X, xAI, Grok or Hetzner.
+[Grok Build announcement](https://x.ai/news/grok-build-cli), and
+[subscription usage guidance](https://docs.x.ai/grok/faq). Tool availability,
+CLI flags, and subscription terms can change.
+
+This project is not affiliated with X, xAI, Grok, GitHub, or Hetzner.
 
 ## Licence
 

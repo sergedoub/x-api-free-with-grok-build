@@ -12,7 +12,7 @@ Run this on your computer:
 ```bash
 gh repo create <owner>/<repo> \
   --private \
-  --template sergedoub/x-reads-from-grok-hetzner \
+  --template sergedoub/x-api-free-with-grok-build \
   --clone
 cd <repo>
 ```

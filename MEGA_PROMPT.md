@@ -4,7 +4,7 @@ Copy everything below into a capable coding agent that can use a terminal.
 
 ---
 
-Set up the `X reads from Grok on Hetzner` template end to end.
+Set up the `X API-free with Grok Build` template end to end.
 
 Your goal is to run scheduled, read-only X monitoring on a Hetzner VPS. Use Grok
 Build's built-in X tools as the default retrieval path. Store accepted Markdown
@@ -12,7 +12,7 @@ in the private GitHub repository's `main` branch under `raw/x/`.
 
 Start by asking me for any value you cannot discover safely:
 
-1. the GitHub repository created from `sergedoub/x-reads-from-grok-hetzner`
+1. the GitHub repository created from `sergedoub/x-api-free-with-grok-build`
 2. the existing Hetzner server name or permission to create one
 3. the local path to the Linux Grok Build binary
 4. the X queries and account handles I want to monitor
