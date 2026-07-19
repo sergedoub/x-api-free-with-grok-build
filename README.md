@@ -1,33 +1,42 @@
-# Read public X through Grok Build, then keep the Markdown
+# Make X API calls for Free from Grok Build
 
-This is a small, standalone pipeline for reading and searching public X without
-an X Developer API key. A scheduled worker on a hardened Hetzner VPS calls Grok
-Build's bundled, read-only X tools, normalizes the results to Markdown, and
-delivers them to your GitHub repository.
+This is a small pipeline for reading and searching public X without
+an X Developer API key.
+
+Instead of pay-per-use access to Posts and User content on X we're using Grok Build which has 1st party integration with X API with kind of secret tools calls. 
+This pipeline is a small step further and shows how to call Grok Build in non-interactive mode on Hetzner VPS (you can use any). 
+Get posts or search for keywords on X and normalize the results to Markdown, deliver them to your GitHub repository.
 
 The repository is the handoff point. What happens next is deliberately open:
 build an app, feed an agent, create a search index, import a database, publish a
-site, or keep an archive.
+site, or keep an archive. I personally use it to feed my [LLM-wiki](https://github.com/sergedoub/bowerbird).
 
 There is no separate per-read X API bill on this path. It is not literally free:
 you still need eligible Grok access and a paid VPS, and Grok usage counts against
 the allowance for that access.
 
-```text
-systemd timer on Hetzner
-  -> Grok Build -> read-only X tools
-  -> /run/x-grok-reader/.../raw/x/<query>/YYYY-MM-DD__<post-id>.md
-  -> ingest/hetzner/<run-id>
-  -> trusted GitHub Actions validation
-  -> your repository's main branch
-  -> anything you want
-```
+## Tools 
+### `x_thread_fetch`: fetch a known post and its thread
+### `x_keyword_search`: use X search operators
+### `x_semantic_search`: find a post by meaning
+### `x_user_search`: resolve an account to a user ID
 
 This is a best-effort reader, not a drop-in X API. Retrieval is model-driven and
 therefore nondeterministic. Grok can miss a result, return a different result on
 another run, or fail to satisfy the structured-output schema. The worker treats
 malformed output as a failed run; it does not invent records or silently fall
 back to a metered API.
+
+
+
+## Set it up
+
+Use either route:
+
+- follow the copy-paste walkthrough in [`SETUP.md`](SETUP.md)
+- give [`MEGA_PROMPT.md`](MEGA_PROMPT.md) to a capable coding agent
+
+
 
 ## A real result, through all four X tools
 
@@ -238,24 +247,11 @@ submit helper uses that key only to propose additions on a branch named
 The VPS reports publication only after the candidate branch disappears and the
 SHA-256 hashes of the files on `main` match its submission.
 
-## Reliability and scope
-
-This project provides reproducible containment and publication, not
-deterministic retrieval. The X tools are mediated by a model, their availability
-and behavior can change, and JSON-schema compliance can fail. Search results are
-best-effort and should not be treated as a complete feed, an audit log, or an
-API with stable ranking and pagination guarantees.
+## Limitations
 
 The tools used here are read-only. This project does not post, like, follow,
-send messages, or manage an X account. A Grok failure never triggers an X API
-fallback. If you explicitly add a metered X API source, keep it as a separate
-provider and spending boundary; see [`docs/x-api.md`](docs/x-api.md).
-
-Before installing, check the current official
-[Grok Build guide](https://docs.x.ai/build/overview),
-[Grok Build announcement](https://x.ai/news/grok-build-cli), and
-[subscription usage guidance](https://docs.x.ai/grok/faq). Tool availability,
-CLI flags, and subscription terms can change.
+send messages, or manage an X account. A Grok Build failure never triggers an X API
+fallback.
 
 This project is not affiliated with X, xAI, Grok, GitHub, or Hetzner.
 
