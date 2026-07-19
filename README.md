@@ -1,4 +1,4 @@
-# Make X API calls for Free from Grok Build's hidden tools
+# Make X API calls for Free from Grok Build
 
 This is a small pipeline for reading and searching public X without
 an X Developer API key.
