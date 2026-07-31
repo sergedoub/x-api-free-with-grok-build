@@ -136,25 +136,13 @@ def normalize_posts(
     return posts
 
 
-def search(
+def _run_grok(
     *,
     grok_bin: str,
     cwd: Path,
-    query: str,
-    limit: int,
-    mode: str,
-    expected_handle: str | None,
-    timeout_seconds: int = 180,
-) -> list[RetrievedPost]:
-    if mode not in {"Latest", "Top"}:
-        raise GrokSearchError("mode must be Latest or Top")
-    prompt = (
-        "Use the server-side x_keyword_search tool exactly as a read-only retrieval tool. "
-        "Do not use terminal, filesystem, web, MCP, skills, subagents, or memory. "
-        f"Search X with mode {mode}, query {json.dumps(query)}, and return at most {limit} posts. "
-        "Return complete post text and UTC ISO-8601 created_at values. Do not summarize, "
-        "invent fields, or include anything except the requested structured object."
-    )
+    prompt: str,
+    timeout_seconds: int,
+) -> object:
     command: Sequence[str] = [
         grok_bin,
         "-p",
@@ -200,37 +188,141 @@ def search(
         )
     except subprocess.TimeoutExpired as exc:
         raise GrokSearchError(
-            f"Grok search exceeded {timeout_seconds} seconds"
+            f"Grok retrieval exceeded {timeout_seconds} seconds"
         ) from exc
     if result.returncode:
-        raise GrokSearchError(f"Grok search failed with exit code {result.returncode}")
+        raise GrokSearchError(
+            f"Grok retrieval failed with exit code {result.returncode}"
+        )
     try:
-        envelope = json.loads(result.stdout)
+        return json.loads(result.stdout)
     except json.JSONDecodeError as exc:
         raise GrokSearchError("Grok command returned invalid JSON") from exc
+
+
+def search(
+    *,
+    grok_bin: str,
+    cwd: Path,
+    query: str,
+    limit: int,
+    mode: str,
+    expected_handle: str | None,
+    timeout_seconds: int = 180,
+) -> list[RetrievedPost]:
+    if mode not in {"Latest", "Top"}:
+        raise GrokSearchError("mode must be Latest or Top")
+    prompt = (
+        "Use the server-side x_keyword_search tool exactly as a read-only retrieval tool. "
+        "Do not use terminal, filesystem, web, MCP, skills, subagents, or memory. "
+        f"Search X with mode {mode}, query {json.dumps(query)}, and return at most {limit} posts. "
+        "Return complete post text and UTC ISO-8601 created_at values. Do not summarize, "
+        "invent fields, or include anything except the requested structured object."
+    )
+    envelope = _run_grok(
+        grok_bin=grok_bin,
+        cwd=cwd,
+        prompt=prompt,
+        timeout_seconds=timeout_seconds,
+    )
     return normalize_posts(envelope, limit=limit, expected_handle=expected_handle)
+
+
+def fetch_thread(
+    *,
+    grok_bin: str,
+    cwd: Path,
+    post_id: str,
+    limit: int,
+    expected_handle: str | None = None,
+    timeout_seconds: int = 180,
+) -> list[RetrievedPost]:
+    cleaned_id = str(post_id).strip()
+    if not POST_ID.fullmatch(cleaned_id):
+        raise GrokSearchError(f"invalid post id: {cleaned_id!r}")
+    prompt = (
+        "Use the server-side x_thread_fetch tool exactly as a read-only retrieval tool. "
+        "Do not use terminal, filesystem, web, MCP, skills, subagents, or memory. "
+        f"Fetch the X post and its thread with post_id {cleaned_id}. "
+        f"Return at most {limit} posts from the thread including the root post. "
+        "Return complete post text and UTC ISO-8601 created_at values. Do not summarize, "
+        "invent fields, or include anything except the requested structured object."
+    )
+    envelope = _run_grok(
+        grok_bin=grok_bin,
+        cwd=cwd,
+        prompt=prompt,
+        timeout_seconds=timeout_seconds,
+    )
+    posts = normalize_posts(envelope, limit=10_000, expected_handle=None)
+    root = next((post for post in posts if post.id == cleaned_id), None)
+    if root is None:
+        raise GrokSearchError(f"thread root post {cleaned_id} missing from result")
+    if expected_handle:
+        expected = expected_handle.lstrip("@").lower()
+        if root.author_handle.lower() != expected:
+            raise GrokSearchError(
+                f"thread root author {root.author_handle!r} does not match "
+                f"expected handle {expected_handle!r}"
+            )
+    ordered = [root, *[post for post in posts if post.id != cleaned_id]]
+    return ordered[: max(1, limit)]
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--query", required=True)
+    source = parser.add_mutually_exclusive_group(required=True)
+    source.add_argument(
+        "--query",
+        help="X keyword search query (uses x_keyword_search)",
+    )
+    source.add_argument(
+        "--post-id",
+        help="X post id to fetch with its thread (uses x_thread_fetch)",
+    )
     parser.add_argument("--limit", type=int, default=20)
-    parser.add_argument("--mode", choices=("Latest", "Top"), default="Latest")
-    parser.add_argument("--expected-handle")
+    parser.add_argument(
+        "--mode",
+        choices=("Latest", "Top"),
+        default=None,
+        help="Search ranking mode for --query only (Latest or Top)",
+    )
+    parser.add_argument(
+        "--expected-handle",
+        help=(
+            "With --query, keep only posts from this handle. "
+            "With --post-id, require the thread root author to match this handle "
+            "while keeping replies from other authors."
+        ),
+    )
     parser.add_argument("--grok-bin", default="grok")
     parser.add_argument("--cwd", type=Path, default=Path.cwd())
     parser.add_argument("--timeout-seconds", type=int, default=180)
     args = parser.parse_args()
+    if args.post_id is not None and args.mode is not None:
+        parser.error("--mode applies only with --query")
+    limit = max(1, min(args.limit, 100))
+    timeout_seconds = max(10, args.timeout_seconds)
     try:
-        posts = search(
-            grok_bin=args.grok_bin,
-            cwd=args.cwd,
-            query=args.query,
-            limit=max(1, min(args.limit, 100)),
-            mode=args.mode,
-            expected_handle=args.expected_handle,
-            timeout_seconds=max(10, args.timeout_seconds),
-        )
+        if args.post_id is not None:
+            posts = fetch_thread(
+                grok_bin=args.grok_bin,
+                cwd=args.cwd,
+                post_id=args.post_id,
+                limit=limit,
+                expected_handle=args.expected_handle,
+                timeout_seconds=timeout_seconds,
+            )
+        else:
+            posts = search(
+                grok_bin=args.grok_bin,
+                cwd=args.cwd,
+                query=args.query,
+                limit=limit,
+                mode=args.mode or "Latest",
+                expected_handle=args.expected_handle,
+                timeout_seconds=timeout_seconds,
+            )
     except GrokSearchError as exc:
         parser.exit(2, f"Grok retrieval failed: {exc}\n")
     print(json.dumps({"posts": [asdict(post) for post in posts]}, sort_keys=True))
