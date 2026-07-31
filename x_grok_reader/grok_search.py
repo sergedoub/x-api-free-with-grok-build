@@ -254,32 +254,53 @@ def fetch_thread(
         prompt=prompt,
         timeout_seconds=timeout_seconds,
     )
-    posts = normalize_posts(envelope, limit=limit, expected_handle=None)
+    posts = normalize_posts(envelope, limit=10_000, expected_handle=None)
+    root = next((post for post in posts if post.id == cleaned_id), None)
+    if root is None:
+        raise GrokSearchError(f"thread root post {cleaned_id} missing from result")
     if expected_handle:
         expected = expected_handle.lstrip("@").lower()
-        root = next((post for post in posts if post.id == cleaned_id), None)
-        if root is None:
-            raise GrokSearchError(f"thread root post {cleaned_id} missing from result")
         if root.author_handle.lower() != expected:
             raise GrokSearchError(
                 f"thread root author {root.author_handle!r} does not match "
                 f"expected handle {expected_handle!r}"
             )
-    return posts
+    ordered = [root, *[post for post in posts if post.id != cleaned_id]]
+    return ordered[: max(1, limit)]
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
     source = parser.add_mutually_exclusive_group(required=True)
-    source.add_argument("--query")
-    source.add_argument("--post-id")
+    source.add_argument(
+        "--query",
+        help="X keyword search query (uses x_keyword_search)",
+    )
+    source.add_argument(
+        "--post-id",
+        help="X post id to fetch with its thread (uses x_thread_fetch)",
+    )
     parser.add_argument("--limit", type=int, default=20)
-    parser.add_argument("--mode", choices=("Latest", "Top"), default="Latest")
-    parser.add_argument("--expected-handle")
+    parser.add_argument(
+        "--mode",
+        choices=("Latest", "Top"),
+        default=None,
+        help="Search ranking mode for --query only (Latest or Top)",
+    )
+    parser.add_argument(
+        "--expected-handle",
+        help=(
+            "With --query, keep only posts from this handle. "
+            "With --post-id, require the thread root author to match this handle "
+            "while keeping replies from other authors."
+        ),
+    )
     parser.add_argument("--grok-bin", default="grok")
     parser.add_argument("--cwd", type=Path, default=Path.cwd())
     parser.add_argument("--timeout-seconds", type=int, default=180)
     args = parser.parse_args()
+    if args.post_id is not None and args.mode is not None:
+        parser.error("--mode applies only with --query")
     limit = max(1, min(args.limit, 100))
     timeout_seconds = max(10, args.timeout_seconds)
     try:
@@ -298,7 +319,7 @@ def main() -> int:
                 cwd=args.cwd,
                 query=args.query,
                 limit=limit,
-                mode=args.mode,
+                mode=args.mode or "Latest",
                 expected_handle=args.expected_handle,
                 timeout_seconds=timeout_seconds,
             )

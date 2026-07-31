@@ -76,6 +76,16 @@ grok -p 'Use x_thread_fetch exactly once with post_id 2078289996323148076. Retur
 
 This returned post ID `2078289996323148076` from `@elonmusk`.
 
+The pipeline helper also exposes this path offline-safe for tests and VPS runs:
+
+```bash
+python3 -m x_grok_reader.grok_search --post-id 2078289996323148076
+```
+
+Optional `--expected-handle` on `--post-id` only checks the thread root author and
+keeps replies from other handles. The same flag on `--query` keeps only matching
+authors. `--mode` applies to `--query` only.
+
 ### `x_keyword_search`: use X search operators
 
 ```bash
