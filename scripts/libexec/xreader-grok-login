@@ -1,5 +1,10 @@
 #!/bin/sh
 set -eu
+umask 077
+
+# Login and retrieval share the same credential snapshot/refresh lock.
+exec 9>>/var/lib/xreader-grok/auth.lock
+/usr/bin/flock -w 30 9 || { echo "Grok authentication lock busy" >&2; exit 75; }
 
 runtime="$(mktemp -d /run/x-grok-reader/grok-login-XXXXXX)"
 cleanup() {
@@ -7,7 +12,16 @@ cleanup() {
     /run/x-grok-reader/grok-login-*) rm -rf -- "$runtime" ;;
   esac
 }
-trap cleanup EXIT HUP INT TERM
+child=""
+interrupt() {
+  if [ -n "$child" ]; then
+    kill -TERM "$child" 2>/dev/null || true
+    wait "$child" 2>/dev/null || true
+  fi
+  exit 143
+}
+trap cleanup EXIT
+trap interrupt HUP INT TERM
 
 mkdir -p "$runtime/home"
 install -m 600 /usr/local/lib/x-grok-reader/grok-home/requirements.toml \
@@ -15,6 +29,9 @@ install -m 600 /usr/local/lib/x-grok-reader/grok-home/requirements.toml \
 export HOME="$runtime"
 export GROK_HOME="$runtime/home"
 unset XAI_API_KEY
-/usr/local/bin/grok login --device-auth
+/usr/local/bin/grok login --device-auth <&0 &
+child=$!
+wait "$child"
+child=""
 test -s "$runtime/home/auth.json"
 install -m 600 "$runtime/home/auth.json" /var/lib/xreader-grok/auth.json

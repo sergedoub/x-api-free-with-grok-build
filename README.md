@@ -3,7 +3,10 @@
 This is a small pipeline for reading and searching public X without
 an X Developer API key.
 
-Instead of pay-per-use access to Posts and User content on X we're using Grok Build which has 1st party integration with X API with kind of secret tools calls. 
+Instead of pay-per-use access to posts and user content through the X Developer API,
+this uses Grok Build's hosted X search tools. Their capabilities now have
+[official documentation](https://docs.x.ai/developers/tools/x-search), although the
+headless CLI integration remains model-mediated.
 This pipeline is a small step further and shows how to call Grok Build in non-interactive mode on Hetzner VPS (you can use any). 
 Get posts or search for keywords on X and normalize the results to Markdown, deliver them to your GitHub repository.
 
@@ -34,6 +37,13 @@ back to a metered API.
 Give [`MEGA_PROMPT.md`](MEGA_PROMPT.md) to a capable coding agent. It contains
 the complete setup, security and end-to-end verification workflow.
 
+## Validated Python reader
+
+The public reader supports keyword, semantic, and exact post/thread operations,
+strict response validation, opt-in rolling date windows, private diagnostic
+traces, and bounded process cleanup. Existing keyword configuration remains
+compatible. See [retrieval reliability and CLI usage](docs/retrieval-reliability.md).
+
 ## A real result, through all four X tools
 
 The commands below were verified with Grok Build 0.2.102 on 18 July 2026 against
@@ -58,6 +68,7 @@ GROK_X_FLAGS=(
   --no-plan
   --max-turns 4
   --disable-web-search
+  --tools x_search
   --deny 'Bash(*)'
   --deny 'Edit(*)'
   --deny 'Read(*)'

@@ -21,6 +21,8 @@ class Query:
     mode: str = "Latest"
     limit: int = 20
     expected_handle: str | None = None
+    operation: str = "keyword"
+    lookback_days: int = 0
 
 
 def load_queries(path: Path) -> list[Query]:
@@ -41,8 +43,24 @@ def load_queries(path: Path) -> list[Query]:
         name = str(row.get("name", "")).strip()
         expression = str(row.get("query", "")).strip()
         mode = str(row.get("mode", "Latest")).strip()
-        limit = int(row.get("limit", 20))
+        limit = row.get("limit", 20)
         expected = str(row.get("expected_handle", "")).lstrip("@").strip() or None
+        operation = row.get("operation", "keyword")
+        lookback = row.get("lookback_days", 0)
+        if not isinstance(operation, str) or operation not in {
+            "keyword",
+            "semantic",
+            "thread",
+        }:
+            raise ConfigError(f"query {name} has an invalid operation")
+        if type(lookback) is not int or not 0 <= lookback <= 36500:
+            raise ConfigError(
+                f"query {name} lookback_days must be an integer from 0 to 36500"
+            )
+        if operation != "keyword" and lookback:
+            raise ConfigError(
+                f"query {name}: lookback_days applies only to keyword queries"
+            )
         if not SLUG.fullmatch(name):
             raise ConfigError(f"invalid query name: {name!r}")
         if name in names:
@@ -51,10 +69,12 @@ def load_queries(path: Path) -> list[Query]:
             raise ConfigError(f"query {name} is empty")
         if mode not in {"Latest", "Top"}:
             raise ConfigError(f"query {name} mode must be Latest or Top")
-        if not 1 <= limit <= 100:
+        if type(limit) is not int or not 1 <= limit <= 100:
             raise ConfigError(f"query {name} limit must be from 1 to 100")
         if expected and not HANDLE.fullmatch(expected):
             raise ConfigError(f"query {name} has an invalid expected_handle")
         names.add(name)
-        queries.append(Query(name, expression, mode, limit, expected))
+        queries.append(
+            Query(name, expression, mode, limit, expected, operation, lookback)
+        )
     return queries

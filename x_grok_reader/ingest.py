@@ -22,6 +22,10 @@ def retrieve(helper: str, query: Query) -> list[dict]:
         str(query.limit),
         "--mode",
         query.mode,
+        "--operation",
+        query.operation,
+        "--lookback-days",
+        str(query.lookback_days),
     ]
     if query.expected_handle:
         command += ["--expected-handle", query.expected_handle]
@@ -36,7 +40,9 @@ def retrieve(helper: str, query: Query) -> list[dict]:
     try:
         payload = json.loads(result.stdout)
     except (json.JSONDecodeError, UnicodeDecodeError) as exc:
-        raise IngestError(f"Grok helper returned invalid JSON for {query.name}") from exc
+        raise IngestError(
+            f"Grok helper returned invalid JSON for {query.name}"
+        ) from exc
     posts = payload.get("posts") if isinstance(payload, dict) else None
     if not isinstance(posts, list):
         raise IngestError(f"Grok helper omitted posts for {query.name}")
@@ -57,8 +63,13 @@ def raw_document(query: Query, post: dict) -> str:
         "query": query.query,
         "source_url": source_url,
     }
+    if query.operation != "keyword":
+        fields["operation"] = query.operation
+    if query.lookback_days:
+        fields["lookback_days"] = str(query.lookback_days)
     frontmatter = "\n".join(
-        f"{key}: {json.dumps(value, ensure_ascii=False)}" for key, value in fields.items()
+        f"{key}: {json.dumps(value, ensure_ascii=False)}"
+        for key, value in fields.items()
     )
     return f"---\n{frontmatter}\n---\n\n{str(post['text']).strip()}\n"
 

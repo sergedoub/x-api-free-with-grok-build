@@ -129,7 +129,7 @@ chmod +x <path-to-linux-grok>
 <path-to-linux-grok> --version
 
 rsync -az --delete \
-  --exclude .git \
+  --exclude .git --exclude debug-runs \
   ./ root@<server-ip>:/tmp/x-grok-reader/
 scp <path-to-linux-grok> root@<server-ip>:/tmp/grok
 
@@ -171,6 +171,10 @@ after the helper confirms success. Authentication must be stored under
 `/var/lib/xreader-grok`, readable only by `xreader-grok`.
 
 ## 7. Test retrieval and one complete publication
+
+The optional `--trace-dir` captures private diagnostics; keep it outside the ephemeral runtime
+only when explicitly debugging, and remove it when finished. See
+`docs/retrieval-reliability.md` for validation rules and CLI operations.
 
 Run one search directly and inspect its structured JSON result. It must use the
 configured Grok retrieval path, return the requested schema and contain no

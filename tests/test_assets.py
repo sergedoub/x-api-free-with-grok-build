@@ -29,15 +29,13 @@ class AssetTests(unittest.TestCase):
         self.assertIn("SocketBindDeny=any", service)
         self.assertIn("/run/x-grok-reader", service)
         self.assertNotIn("/home/hermes", service)
-        tmpfiles = (ROOT / "systemd/x-grok-reader.tmpfiles").read_text(
-            encoding="utf-8"
-        )
+        tmpfiles = (ROOT / "systemd/x-grok-reader.tmpfiles").read_text(encoding="utf-8")
         self.assertIn("/run/x-grok-reader", tmpfiles)
 
     def test_publisher_has_no_candidate_push_trigger(self) -> None:
-        workflow = (
-            ROOT / ".github/workflows/publish-ingest-candidate.yml"
-        ).read_text(encoding="utf-8")
+        workflow = (ROOT / ".github/workflows/publish-ingest-candidate.yml").read_text(
+            encoding="utf-8"
+        )
         self.assertIn("schedule:", workflow)
         self.assertIn("workflow_dispatch:", workflow)
         self.assertNotIn("\n  push:", workflow)
@@ -46,7 +44,7 @@ class AssetTests(unittest.TestCase):
         self.assertIn("candidate-provided code is never executed", workflow.lower())
 
     def test_no_private_instance_identifiers(self) -> None:
-        excluded = {".git", "tests", "__pycache__"}
+        excluded = {".git", "tests", "__pycache__", "debug-runs"}
         text = "\n".join(
             path.read_text(encoding="utf-8", errors="replace")
             for path in ROOT.rglob("*")

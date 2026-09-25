@@ -4,6 +4,8 @@
 [[queries]]
 name = "example-topic"
 query = '"example topic" lang:en -is:retweet'
+operation = "keyword"
+lookback_days = 0 # Set to 7 for an otherwise undated rolling Latest query.
 mode = "Latest"
 limit = 20
 enabled = false
@@ -12,6 +14,8 @@ enabled = false
 name = "example-account"
 query = "from:example since:2026-01-01 -is:retweet"
 expected_handle = "example"
+operation = "keyword"
+lookback_days = 0 # Set to 7 for an otherwise undated rolling Latest query.
 mode = "Latest"
 limit = 20
 enabled = false
