@@ -13,7 +13,7 @@ repo_url="$3"
 test -f "$source_root/x_grok_reader/worker.py"
 test -f "$source_root/config/queries.toml"
 test -f "$grok_binary"
-for command in findmnt git ssh ssh-keygen sudo python3 visudo systemctl; do
+for command in findmnt git ssh ssh-keygen sudo python3 visudo systemctl flock; do
   command -v "$command" >/dev/null || {
     echo "required command is missing: $command" >&2
     exit 1
@@ -39,7 +39,7 @@ if not load_queries(pathlib.Path(sys.argv[1])):
 PY
 
 grok_help="$("$grok_binary" --help)"
-for flag in --always-approve --sandbox --json-schema --no-memory --no-subagents; do
+for flag in --always-approve --sandbox --json-schema --no-memory --no-subagents --tools; do
   printf '%s\n' "$grok_help" | grep -F -- "$flag" >/dev/null || {
     echo "installed Grok Build does not support required flag: $flag" >&2
     exit 1

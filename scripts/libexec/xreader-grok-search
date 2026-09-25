@@ -1,5 +1,10 @@
 #!/bin/sh
 set -eu
+umask 077
+
+# Login and retrieval share the same credential snapshot/refresh lock.
+exec 9>>/var/lib/xreader-grok/auth.lock
+/usr/bin/flock -w 30 9 || { echo "Grok authentication lock busy" >&2; exit 75; }
 
 runtime="$(mktemp -d /run/x-grok-reader/grok-XXXXXX)"
 cleanup() {
@@ -7,7 +12,16 @@ cleanup() {
     /run/x-grok-reader/grok-*) rm -rf -- "$runtime" ;;
   esac
 }
-trap cleanup EXIT HUP INT TERM
+child=""
+interrupt() {
+  if [ -n "$child" ]; then
+    kill -TERM "$child" 2>/dev/null || true
+    wait "$child" 2>/dev/null || true
+  fi
+  exit 143
+}
+trap cleanup EXIT
+trap interrupt HUP INT TERM
 
 mkdir -p "$runtime/home" "$runtime/cwd"
 install -m 600 /var/lib/xreader-grok/auth.json "$runtime/home/auth.json"
@@ -23,8 +37,11 @@ export PYTHONPATH=/usr/local/lib/x-grok-reader
 
 set +e
 /usr/bin/python3 -m x_grok_reader.grok_search \
-  --grok-bin /usr/local/bin/grok --cwd "$runtime/cwd" "$@"
+  --grok-bin /usr/local/bin/grok --cwd "$runtime/cwd" "$@" &
+child=$!
+wait "$child"
 status=$?
+child=""
 set -e
 
 if [ -f "$runtime/home/auth.json" ]; then

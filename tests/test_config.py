@@ -39,3 +39,23 @@ enabled = false
             )
             with self.assertRaises(ConfigError):
                 load_queries(path)
+
+    def test_operation_and_window_configuration(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "queries.toml"
+            path.write_text(
+                '[[queries]]\nname="recent"\nquery="from:example"\noperation="keyword"\nlookback_days=7\n'
+            )
+            query = load_queries(path)[0]
+            self.assertEqual((query.operation, query.lookback_days), ("keyword", 7))
+            for values in (
+                'operation="bad"',
+                "lookback_days=-1",
+                "lookback_days=true",
+                'operation="thread"\nlookback_days=7',
+            ):
+                path.write_text(
+                    '[[queries]]\nname="recent"\nquery="example"\n' + values + "\n"
+                )
+                with self.subTest(values=values), self.assertRaises(ConfigError):
+                    load_queries(path)

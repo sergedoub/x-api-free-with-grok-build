@@ -4,3 +4,6 @@ __pycache__/
 .env
 auth.json
 health.json
+
+# Local retrieval payloads and diagnostic traces
+debug-runs/
